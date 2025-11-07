@@ -5,6 +5,16 @@ import apiClient from '../api/client'
 import WorkflowProgress from '../components/WorkflowProgress'
 import '../App.css'
 
+const normalizeCertifications = (certs: any): string[] => {
+  if (!certs) return []
+  if (Array.isArray(certs)) return certs
+  try {
+    return JSON.parse(certs) as string[]
+  } catch {
+    return []
+  }
+}
+
 function QualityReviewScreen() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -52,7 +62,7 @@ function QualityReviewScreen() {
     <div className="container">
       <div style={{ marginBottom: '1rem' }}>
         <button className="btn btn-secondary" onClick={() => navigate(`/requirements/${id}/sampling`)}>
-          ← Back to Sampling
+           Back to Sampling
         </button>
       </div>
       <WorkflowProgress currentStage="quality-review" />
@@ -66,7 +76,9 @@ function QualityReviewScreen() {
           <div style={{ marginBottom: '2rem' }}>
             <h3>Samples Awaiting Review ({suppliersNeedingReview.length})</h3>
             <div className="supplier-list">
-              {suppliersNeedingReview.map((supplier: any) => (
+            {suppliersNeedingReview.map((supplier: any) => {
+              const certifications = normalizeCertifications(supplier.certifications)
+              return (
                 <div key={supplier.id} className="supplier-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ flex: 1 }}>
@@ -77,12 +89,12 @@ function QualityReviewScreen() {
                           <p><strong>Sample Details:</strong></p>
                           <p>Quantity: {supplier.sample.quantity} units</p>
                           <p>Price Quoted: ${supplier.sample.price_quoted?.toFixed(2)} (${supplier.sample.price_per_unit?.toFixed(2)}/unit)</p>
-                          <p>Delivery Address: {supplier.sample.address}</p>
+                          <p>Delivery Address: {supplier.sample.delivery_address}</p>
                           {supplier.quality_rating && (
                             <p>Supplier Quality Rating: {supplier.quality_rating}/5.0</p>
                           )}
-                          {supplier.certifications && JSON.parse(supplier.certifications || '[]').length > 0 && (
-                            <p>Certifications: {JSON.parse(supplier.certifications || '[]').join(', ')}</p>
+                          {certifications.length > 0 && (
+                            <p>Certifications: {certifications.join(', ')}</p>
                           )}
                         </div>
                       )}
@@ -100,7 +112,8 @@ function QualityReviewScreen() {
                     </button>
                   </div>
                 </div>
-              ))}
+              )
+            })}
             </div>
           </div>
         )}
@@ -124,7 +137,7 @@ function QualityReviewScreen() {
             {reviewedSuppliers.some((s: any) => s.status === 'quality_approved') && (
               <div style={{ marginTop: '1.5rem' }}>
                 <button className="btn btn-success" onClick={() => navigate(`/requirements/${id}/cost-analysis`)}>
-                  Continue to Cost Analysis →
+                  Continue to Cost Analysis 
                 </button>
               </div>
             )}
@@ -135,7 +148,7 @@ function QualityReviewScreen() {
           <div>
             <p>No samples to review at this time.</p>
             <button className="btn btn-secondary" onClick={() => navigate(`/requirements/${id}/sampling`)}>
-              ← Back to Sampling
+               Back to Sampling
             </button>
           </div>
         )}
@@ -168,22 +181,20 @@ function QualityReviewScreen() {
             }}>
               <div className="form-group">
                 <label>Quality Approved *</label>
-                <div>
-                  <label style={{ display: 'flex', alignItems: 'center', marginRight: '1rem' }}>
+                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <input
                       type="radio"
                       checked={qualityData.quality_approved === true}
                       onChange={() => setQualityData({ ...qualityData, quality_approved: true })}
-                      style={{ marginRight: '0.5rem' }}
                     />
                     Approved
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <input
                       type="radio"
                       checked={qualityData.quality_approved === false}
                       onChange={() => setQualityData({ ...qualityData, quality_approved: false })}
-                      style={{ marginRight: '0.5rem' }}
                     />
                     Rejected
                   </label>
@@ -229,4 +240,3 @@ function QualityReviewScreen() {
 }
 
 export default QualityReviewScreen
-

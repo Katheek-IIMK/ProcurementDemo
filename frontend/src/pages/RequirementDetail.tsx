@@ -138,7 +138,7 @@ function RequirementDetail() {
     <div className="container">
       <div style={{ marginBottom: '1rem' }}>
         <button className="btn btn-secondary" onClick={() => navigate('/')}>
-          ← Back to Dashboard
+           Back to Dashboard
         </button>
       </div>
 

@@ -47,7 +47,7 @@ function SamplingScreen() {
     <div className="container">
       <div style={{ marginBottom: '1rem' }}>
         <button className="btn btn-secondary" onClick={() => navigate(`/requirements/${id}/outreach`)}>
-          ← Back to Outreach
+           Back to Outreach
         </button>
       </div>
       <WorkflowProgress currentStage="sampling" />
@@ -66,11 +66,11 @@ function SamplingScreen() {
                   <h4>{supplier.name}</h4>
                   {supplier.sample && (
                     <div style={{ marginTop: '0.5rem', padding: '0.75rem', background: '#d4edda', borderRadius: '4px' }}>
-                      <p><strong>✓ Sample Order Details:</strong></p>
+                      <p><strong> Sample Order Details:</strong></p>
                       <p><strong>Quantity:</strong> {supplier.sample.quantity} units</p>
                       <p><strong>Price Quoted:</strong> ${supplier.sample.price_quoted?.toFixed(2)}</p>
                       <p><strong>Price per Unit:</strong> ${supplier.sample.price_per_unit?.toFixed(2)}</p>
-                      <p><strong>Delivery Address:</strong> {supplier.sample.address || 'Main Warehouse'}</p>
+                      <p><strong>Delivery Address:</strong> {supplier.sample.delivery_address || 'Main Warehouse'}</p>
                       <p><strong>Status:</strong> Sample received, awaiting quality review</p>
                     </div>
                   )}
@@ -117,7 +117,7 @@ function SamplingScreen() {
             </div>
             <div style={{ marginTop: '1.5rem' }}>
               <button className="btn btn-success" onClick={() => navigate(`/requirements/${id}/quality-review`)}>
-                Continue to Quality Review →
+                Continue to Quality Review 
               </button>
             </div>
           </div>
@@ -127,7 +127,7 @@ function SamplingScreen() {
           <div>
             <p>No samples to manage at this time.</p>
             <button className="btn btn-secondary" onClick={() => navigate(`/requirements/${id}/outreach`)}>
-              ← Back to Outreach
+               Back to Outreach
             </button>
           </div>
         )}

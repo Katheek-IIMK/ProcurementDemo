@@ -59,7 +59,7 @@ function WorkflowProgress({ currentStage }: WorkflowProgressProps) {
                     flexShrink: 0
                   }}
                 >
-                  {isCompleted ? '✓' : index + 1}
+                  {isCompleted ? 'V' : index + 1}
                 </div>
                 <span style={{ whiteSpace: 'nowrap' }}>{stage.label}</span>
               </Link>

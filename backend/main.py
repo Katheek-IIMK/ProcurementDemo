@@ -9,6 +9,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 import json
+import random
 
 from models.database import engine, SessionLocal, Base
 from models.procurement import (
@@ -88,6 +89,98 @@ srm_service = SRMService()
 supplier_metrics_service = SupplierMetricsService()
 
 
+# Helper functions
+def process_supplier_outreach(supplier: Supplier, requirement: ProcurementRequirement, db: Session) -> dict:
+    has_phone = bool(supplier.phone)
+    contact_result = outreach_agent.handle_supplier_contact(
+        {
+            "id": supplier.id,
+            "name": supplier.name,
+            "email": supplier.email,
+            "phone": supplier.phone
+        },
+        requirement.description,
+        has_phone
+    )
+
+    response_rate = 0.75
+    responded = random.random() < response_rate
+    sample_details = None
+
+    if responded:
+        supplier.status = SupplierStatus.RESPONDED
+        supplier.contact_method = contact_result["method"]
+        supplier.last_contacted = datetime.utcnow()
+        supplier.notes = contact_result.get("notes", "")
+
+        followup_result = outreach_agent.manage_sampling_followups(
+            {
+                "id": supplier.id,
+                "name": supplier.name
+            },
+            requirement.description
+        )
+        supplier.status = SupplierStatus.SAMPLE_REQUESTED
+        supplier.notes = (supplier.notes or "") + f" | Sampling requested: {followup_result.get('inquiries', {})}"
+
+        try:
+            sample_details = auto_place_sample_order(supplier, requirement, db)
+            if sample_details:
+                supplier.status = SupplierStatus.SAMPLE_RECEIVED
+                supplier.notes = (supplier.notes or "") + f" | Sample order placed: {sample_details.get('quantity')} units @ ${sample_details.get('price_quoted')}"
+        except Exception as exc:
+            print(f"Error auto-placing sample order for supplier {supplier.id}: {exc}")
+            sample_details = None
+    else:
+        supplier.status = SupplierStatus.CONTACTED
+        supplier.contact_method = contact_result["method"]
+        supplier.last_contacted = datetime.utcnow()
+        base_notes = contact_result.get("notes", "")
+        supplier.notes = (base_notes or "Awaiting response") + " | No response yet"
+
+    db.commit()
+    return {
+        "id": supplier.id,
+        "name": supplier.name,
+        "responded": responded,
+        "sample_ordered": sample_details is not None,
+        "sample_details": sample_details,
+        "status": supplier.status.value,
+        "contact_method": supplier.contact_method
+    }
+
+
+def initiate_onboarding(supplier: Supplier, requirement: ProcurementRequirement):
+    srm_result = srm_service.analyze_srm(
+        {
+            "id": supplier.id,
+            "name": supplier.name,
+            "email": supplier.email,
+            "certifications": json.loads(supplier.certifications or "[]")
+        },
+        {
+            "id": requirement.id,
+            "title": requirement.title,
+            "description": requirement.description
+        }
+    )
+    supplier.status = SupplierStatus.SHORTLISTED
+    cleaned_notes = (supplier.notes or "").strip()
+    risk_level = srm_result.get("risk_assessment", {}).get("risk_level")
+    timeline = srm_result.get("onboarding_plan", {}).get("estimated_timeline")
+    summary_note = "Onboarding initiated"
+    if risk_level:
+        summary_note += f" | Risk: {risk_level.title()}"
+    if timeline:
+        summary_note += f" | Timeline: {timeline}"
+    if "Onboarding initiated" not in cleaned_notes:
+        supplier.notes = f"{cleaned_notes} | {summary_note}" if cleaned_notes else summary_note
+    else:
+        supplier.notes = cleaned_notes
+    requirement.status = RequirementStatus.ONBOARDING
+    return srm_result
+
+
 @app.get("/")
 def root():
     return {"message": "Procurement Demo API - Fully Autonomous Sourcing Agent"}
@@ -143,7 +236,6 @@ def start_scouting(requirement_id: int, db: Session = Depends(get_db)):
             requirement.description
         )
         
-        # Calculate supplier metrics
         metrics = supplier_metrics_service.calculate_supplier_metrics(supplier_data)
         
         db_supplier = Supplier(
@@ -163,18 +255,46 @@ def start_scouting(requirement_id: int, db: Session = Depends(get_db)):
             overall_score=metrics["overall_score"]
         )
         db.add(db_supplier)
-        db.flush()  # Get the ID
+        db.flush()
         created_suppliers.append(supplier_data)
     
     requirement.status = RequirementStatus.OUTREACH
+    db.commit()
+    
+    # Automatically select top suppliers based on overall score
+    available_suppliers = db.query(Supplier).filter(
+        Supplier.requirement_id == requirement_id,
+        Supplier.availability_scope == True,
+        Supplier.status == SupplierStatus.DISCOVERED
+    ).all()
+    
+    ranked_suppliers = sorted(available_suppliers, key=lambda s: s.overall_score or 0, reverse=True)
+    auto_selected_ids = []
+    outreach_results = []
+    max_auto = min(3, len(ranked_suppliers)) if ranked_suppliers else 0
+    
+    for supplier in ranked_suppliers[:max_auto]:
+        supplier.selected_for_outreach = True
+        supplier.status = SupplierStatus.CONTACTED
+        db.commit()
+        auto_selected_ids.append(supplier.id)
+        result = process_supplier_outreach(supplier, requirement, db)
+        outreach_results.append(result)
+    
+    if any(result.get("sample_ordered") for result in outreach_results):
+        requirement.status = RequirementStatus.SAMPLING
+    elif outreach_results:
+        requirement.status = RequirementStatus.OUTREACH
     db.commit()
     
     return {
         "requirement_id": requirement_id,
         "suppliers_found": len(created_suppliers),
         "suppliers": created_suppliers,
+        "auto_selected": auto_selected_ids,
+        "outreach_results": outreach_results,
         "status": requirement.status.value,
-        "message": f"Scouting complete. {len(created_suppliers)} suppliers discovered with metrics. Please select suppliers for outreach."
+        "message": f"Scouting complete. Automatically selected {len(auto_selected_ids)} supplier(s) for outreach."
     }
 
 
@@ -188,14 +308,12 @@ def select_suppliers_for_outreach(requirement_id: int, selection: SupplierSelect
     if not requirement:
         raise HTTPException(status_code=404, detail="Requirement not found")
     
-    # Mark selected suppliers
     selected_suppliers = []
     for supplier_id in selection.supplier_ids:
         supplier = db.query(Supplier).filter(
             Supplier.id == supplier_id,
             Supplier.requirement_id == requirement_id
         ).first()
-        
         if supplier:
             supplier.selected_for_outreach = True
             supplier.status = SupplierStatus.CONTACTED
@@ -203,72 +321,18 @@ def select_suppliers_for_outreach(requirement_id: int, selection: SupplierSelect
     
     db.commit()
     
-    # Automatically start outreach for selected suppliers
     contacted_suppliers = []
     for supplier_id in selected_suppliers:
-        try:
-            supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
-            if supplier and supplier.selected_for_outreach:
-                has_phone = bool(supplier.phone)
-                contact_result = outreach_agent.handle_supplier_contact(
-                    {
-                        "id": supplier.id,
-                        "name": supplier.name,
-                        "email": supplier.email,
-                        "phone": supplier.phone
-                    },
-                    requirement.description,
-                    has_phone
-                )
-                
-                # Realistic response simulation (not 100% positive)
-                import random
-                response_rate = 0.75  # 75% response rate
-                responded = random.random() < response_rate
-                auto_sample = None
-                
-                if responded:
-                    supplier.status = SupplierStatus.RESPONDED
-                    supplier.contact_method = contact_result["method"]
-                    supplier.last_contacted = datetime.utcnow()
-                    supplier.notes = contact_result.get("notes", "")
-                    
-                    # Automatically request sampling if supplier responded
-                    followup_result = outreach_agent.manage_sampling_followups(
-                        {
-                            "id": supplier.id,
-                            "name": supplier.name
-                        },
-                        requirement.description
-                    )
-                    supplier.status = SupplierStatus.SAMPLE_REQUESTED
-                    supplier.notes = (supplier.notes or "") + f" | Sampling requested: {followup_result.get('inquiries', {})}"
-                    
-                    # Automatically place sample order
-                    try:
-                        auto_sample = auto_place_sample_order(supplier, requirement, db)
-                        if auto_sample:
-                            supplier.status = SupplierStatus.SAMPLE_RECEIVED
-                            supplier.notes = (supplier.notes or "") + f" | Sample order placed: {auto_sample.get('quantity')} units @ ${auto_sample.get('price_quoted')}"
-                    except Exception as e:
-                        print(f"Error auto-placing sample order: {e}")
-                        auto_sample = None
-                else:
-                    supplier.status = SupplierStatus.CONTACTED
-                    supplier.contact_method = contact_result["method"]
-                    supplier.last_contacted = datetime.utcnow()
-                    supplier.notes = contact_result.get("notes", "") + " | No response yet"
-                
-                db.commit()
-                contacted_suppliers.append({
-                    "id": supplier.id,
-                    "name": supplier.name,
-                    "responded": responded,
-                    "sample_ordered": responded and auto_sample is not None
-                })
-        except Exception as e:
-            print(f"Error contacting supplier {supplier_id}: {e}")
-            continue
+        supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+        if supplier and supplier.selected_for_outreach:
+            result = process_supplier_outreach(supplier, requirement, db)
+            contacted_suppliers.append(result)
+    
+    if any(result.get("sample_ordered") for result in contacted_suppliers):
+        requirement.status = RequirementStatus.SAMPLING
+    elif contacted_suppliers:
+        requirement.status = RequirementStatus.OUTREACH
+    db.commit()
     
     return {
         "requirement_id": requirement_id,
@@ -751,13 +815,11 @@ def create_shortlist(requirement_id: int, db: Session = Depends(get_db)):
     if not requirement:
         raise HTTPException(status_code=404, detail="Requirement not found")
     
-    # Get all quality-approved suppliers with cost analysis
     suppliers = db.query(Supplier).filter(
         Supplier.requirement_id == requirement_id,
         Supplier.status.in_([SupplierStatus.COST_ANALYZED, SupplierStatus.SHORTLISTED])
     ).all()
     
-    # Prepare data for shortlist service
     suppliers_data = []
     for supplier in suppliers:
         cost_analysis = db.query(CostAnalysis).filter(
@@ -779,10 +841,14 @@ def create_shortlist(requirement_id: int, db: Session = Depends(get_db)):
             "response_received": supplier.status != SupplierStatus.DISCOVERED
         })
     
-    # Create shortlist
     shortlist = shortlist_service.create_shortlist(suppliers_data)
     
-    # Save shortlist to database
+    # Replace existing shortlist entries
+    db.query(SupplierShortlist).filter(
+        SupplierShortlist.requirement_id == requirement_id
+    ).delete()
+    db.commit()
+    
     for item in shortlist:
         db_shortlist = SupplierShortlist(
             requirement_id=requirement_id,
@@ -801,7 +867,8 @@ def create_shortlist(requirement_id: int, db: Session = Depends(get_db)):
     return {
         "requirement_id": requirement_id,
         "shortlist": shortlist,
-        "status": requirement.status.value
+        "status": requirement.status.value,
+        "onboarding": None
     }
 
 
@@ -814,29 +881,12 @@ def start_onboarding(supplier_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Supplier not found")
     
     requirement = supplier.requirement
-    
-    # Perform SRM analysis
-    srm_result = srm_service.analyze_srm(
-        {
-            "id": supplier.id,
-            "name": supplier.name,
-            "email": supplier.email,
-            "certifications": json.loads(supplier.certifications or "[]")
-        },
-        {
-            "id": requirement.id,
-            "title": requirement.title,
-            "description": requirement.description
-        }
-    )
-    
-    supplier.status = SupplierStatus.SHORTLISTED
-    requirement.status = RequirementStatus.ONBOARDING
+    onboarding_result = initiate_onboarding(supplier, requirement)
     db.commit()
     
     return {
         "supplier_id": supplier_id,
-        "srm_analysis": srm_result,
+        "srm_analysis": onboarding_result,
         "status": requirement.status.value,
         "message": "Onboarding process initiated"
     }
@@ -857,6 +907,7 @@ def get_requirement(requirement_id: int, db: Session = Depends(get_db)):
     ).all()
     
     suppliers_data = []
+    supplier_lookup = {}
     for supplier in suppliers:
         sample = db.query(Sample).filter(
             Sample.supplier_id == supplier.id
@@ -871,7 +922,7 @@ def get_requirement(requirement_id: int, db: Session = Depends(get_db)):
             NegotiationIteration.supplier_id == supplier.id
         ).order_by(NegotiationIteration.iteration_number).all()
         
-        suppliers_data.append({
+        supplier_payload = {
             "id": supplier.id,
             "name": supplier.name,
             "status": supplier.status.value,
@@ -882,13 +933,24 @@ def get_requirement(requirement_id: int, db: Session = Depends(get_db)):
             "delivery_reliability": supplier.delivery_reliability,
             "price_competitiveness": supplier.price_competitiveness,
             "overall_score": supplier.overall_score,
+            "contact_method": supplier.contact_method,
+            "last_contacted": supplier.last_contacted.isoformat() if supplier.last_contacted else None,
+            "notes": supplier.notes or "",
+            "email": supplier.email,
+            "phone": supplier.phone,
+            "company": supplier.company,
+            "website": supplier.website,
+            "certifications": json.loads(supplier.certifications or "[]"),
             "sample": {
                 "id": sample.id,
                 "quantity": sample.quantity,
                 "price_quoted": sample.price_quoted,
                 "price_per_unit": round(sample.price_quoted / sample.quantity, 2) if sample and sample.quantity > 0 else 0,
                 "quality_approved": sample.quality_approved,
-                "address": sample.address
+                "quality_notes": sample.quality_notes,
+                "quality_reviewed_by": sample.quality_reviewed_by,
+                "quality_reviewed_at": sample.quality_reviewed_at.isoformat() if sample.quality_reviewed_at else None,
+                "delivery_address": sample.address
             } if sample else None,
             "cost_analysis": {
                 "total_cost": cost_analysis.total_cost,
@@ -897,21 +959,43 @@ def get_requirement(requirement_id: int, db: Session = Depends(get_db)):
                 "meets_expectations": cost_analysis.meets_expectations
             } if cost_analysis else None,
             "negotiation_iterations": [{
-                "iteration": ni.iteration_number,
+                "iteration_number": ni.iteration_number,
                 "proposed_cost": ni.proposed_cost,
                 "target_cost": ni.target_cost,
                 "outcome": ni.outcome,
                 "notes": ni.notes,
                 "strategy": ni.negotiation_strategy
             } for ni in negotiation_iterations] if negotiation_iterations else []
-        })
+        }
+        suppliers_data.append(supplier_payload)
+        supplier_lookup[supplier.id] = supplier_payload
+
+    shortlist_entries = db.query(SupplierShortlist).filter(
+        SupplierShortlist.requirement_id == requirement_id
+    ).order_by(SupplierShortlist.rank).all()
+
+    shortlist_data = [{
+        "supplier_id": entry.supplier_id,
+        "rank": entry.rank,
+        "integrated_score": entry.integrated_score,
+        "cost_score": entry.cost_score,
+        "quality_score": entry.quality_score,
+        "recommendation": entry.recommendation,
+        "created_at": entry.created_at.isoformat() if entry.created_at else None,
+        "supplier": supplier_lookup.get(entry.supplier_id)
+    } for entry in shortlist_entries]
     
     return {
         "id": requirement.id,
         "title": requirement.title,
         "description": requirement.description,
+        "category": requirement.category,
+        "quantity": requirement.quantity,
+        "unit": requirement.unit,
+        "required_certifications": json.loads(requirement.required_certifications or "[]"),
         "status": requirement.status.value,
-        "suppliers": suppliers_data
+        "suppliers": suppliers_data,
+        "shortlist": shortlist_data
     }
 
 
