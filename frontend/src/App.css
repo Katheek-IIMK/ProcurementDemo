@@ -1,0 +1,274 @@
+.App {
+  min-height: 100vh;
+}
+
+.app-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.app-header h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.app-header p {
+  font-size: 1rem;
+  opacity: 0.9;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.card {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card h2 {
+  margin-bottom: 1rem;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.card h3 {
+  margin-bottom: 0.75rem;
+  color: #555;
+  font-size: 1.25rem;
+}
+
+.btn {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background 0.2s;
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.btn:hover {
+  background: #5568d3;
+}
+
+.btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #6c757d;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+}
+
+.btn-success {
+  background: #28a745;
+}
+
+.btn-success:hover {
+  background: #218838;
+}
+
+.btn-danger {
+  background: #dc3545;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.form-group textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.form-group input[type="checkbox"] {
+  width: auto;
+  margin-right: 0.5rem;
+}
+
+.status-draft { background: #e9ecef; color: #495057; }
+.status-scouting { background: #cfe2ff; color: #084298; }
+.status-outreach { background: #fff3cd; color: #856404; }
+.status-sampling { background: #d1ecf1; color: #0c5460; }
+.status-quality_review { background: #f8d7da; color: #721c24; }
+.status-cost_analysis { background: #d4edda; color: #155724; }
+.status-negotiation { background: #fff3cd; color: #856404; }
+.status-shortlisted { background: #d1ecf1; color: #0c5460; }
+.status-onboarding { background: #d4edda; color: #155724; }
+.status-completed { background: #d4edda; color: #155724; }
+.status-rejected { background: #f8d7da; color: #721c24; }
+
+.workflow-step {
+  border-left: 4px solid #667eea;
+  padding-left: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.workflow-step h4 {
+  color: #667eea;
+  margin-bottom: 0.5rem;
+}
+
+.workflow-step p {
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.supplier-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.supplier-card {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem;
+  background: #f9f9f9;
+}
+
+.supplier-card h4 {
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.supplier-card p {
+  margin-bottom: 0.25rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-discovered {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.status-contacted {
+  background: #fff3e0;
+  color: #f57c00;
+}
+
+.status-responded {
+  background: #e8f5e9;
+  color: #388e3c;
+}
+
+.status-sample_requested {
+  background: #e1bee7;
+  color: #7b1fa2;
+}
+
+.status-sample_received {
+  background: #c8e6c9;
+  color: #2e7d32;
+}
+
+.status-quality_approved {
+  background: #c5e1a5;
+  color: #558b2f;
+}
+
+.status-quality_rejected {
+  background: #ffcdd2;
+  color: #c62828;
+}
+
+.status-cost_analyzed {
+  background: #b3e5fc;
+  color: #0277bd;
+}
+
+.status-negotiating {
+  background: #ffe0b2;
+  color: #e65100;
+}
+
+.status-shortlisted {
+  background: #a5d6a7;
+  color: #1b5e20;
+}
+
+.status-success {
+  background: #c8e6c9;
+  color: #2e7d32;
+}
+
+.status-partial_success {
+  background: #fff9c4;
+  color: #f57f17;
+}
+
+.status-rejected {
+  background: #ffcdd2;
+  color: #c62828;
+}
+
+.error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.success {
+  background: #d4edda;
+  color: #155724;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
