@@ -8,6 +8,7 @@ function RequirementDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const isDevMode = import.meta.env.MODE === 'development'
   const [showSampleForm, setShowSampleForm] = useState<number | null>(null)
   const [showQualityForm, setShowQualityForm] = useState<number | null>(null)
   const [sampleData, setSampleData] = useState({ quantity: '', address: '', price_quoted: '' })
@@ -34,65 +35,6 @@ function RequirementDetail() {
           alert(`Scouting complete! ${data.auto_contacted} suppliers automatically contacted and sampling requested.`)
         }, 500)
       }
-    },
-  })
-
-  const outreachMutation = useMutation({
-    mutationFn: async (supplierId: number) => {
-      try {
-        const response = await apiClient.post(`/suppliers/${supplierId}/outreach`)
-        return response.data
-      } catch (error: any) {
-        console.error('Outreach error:', error)
-        throw error
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requirement', id] })
-    },
-    onError: (error: any) => {
-      console.error('Failed to contact supplier:', error)
-      alert(`Error: ${error.response?.data?.detail || error.message || 'Failed to contact supplier'}`)
-    },
-  })
-
-  const samplingMutation = useMutation({
-    mutationFn: async (supplierId: number) => {
-      const response = await apiClient.post(`/suppliers/${supplierId}/sampling`)
-      return response.data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requirement', id] })
-    },
-  })
-
-  const costAnalysisMutation = useMutation({
-    mutationFn: async (supplierId: number) => {
-      const response = await apiClient.post(`/suppliers/${supplierId}/cost-analysis`)
-      return response.data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requirement', id] })
-    },
-  })
-
-  const negotiateMutation = useMutation({
-    mutationFn: async (supplierId: number) => {
-      const response = await apiClient.post(`/suppliers/${supplierId}/negotiate`)
-      return response.data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requirement', id] })
-    },
-  })
-
-  const shortlistMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiClient.post(`/requirements/${id}/shortlist`)
-      return response.data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requirement', id] })
     },
   })
 
@@ -202,7 +144,7 @@ function RequirementDetail() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       {/* Debug info - remove in production */}
-                      {process.env.NODE_ENV === 'development' && (
+                      {isDevMode && (
                         <div style={{ fontSize: '0.75rem', color: '#999', marginBottom: '0.5rem' }}>
                           Debug: status={supplier.status}, availability={String(supplier.availability_scope)}
                         </div>

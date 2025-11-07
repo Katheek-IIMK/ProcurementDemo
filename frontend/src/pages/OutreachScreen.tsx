@@ -22,7 +22,6 @@ function OutreachScreen() {
     return requirement.suppliers.filter((s: any) => s.selected_for_outreach)
   }, [requirement?.suppliers])
 
-  const sampleSuppliers = outreachSuppliers.filter((s: any) => ['sample_requested', 'sample_received'].includes(s.status))
   const respondedSuppliers = outreachSuppliers.filter((s: any) => ['responded', 'sample_requested', 'sample_received'].includes(s.status))
   const noResponseSuppliers = outreachSuppliers.filter((s: any) => s.status === 'contacted')
   const samplePlaced = outreachSuppliers.filter((s: any) => s.status === 'sample_received')

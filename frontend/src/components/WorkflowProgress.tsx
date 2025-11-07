@@ -27,7 +27,6 @@ function WorkflowProgress({ currentStage }: WorkflowProgressProps) {
         {stages.map((stage, index) => {
           const isActive = stage.key === currentStage
           const isCompleted = index < currentIndex
-          const isUpcoming = index > currentIndex
 
           return (
             <div key={stage.key} style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: '120px' }}>
