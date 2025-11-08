@@ -62,6 +62,23 @@ cd frontend
 npm start
 ```
 
+## Frontend-Only Demo Mode
+
+When the frontend is deployed without the FastAPI backend (for example on Netlify), the application automatically falls back to a simulated workflow that runs entirely in the browser:
+
+- API calls are handled by a local mock service backed by `localStorage`.
+- The workflow steps (scouting, outreach, sampling, etc.) populate realistic demo data so the UI remains fully navigable.
+- No external network calls are required.
+
+### Configuration
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | `/api` | Set to a real backend URL (including `/api`) to disable the mock client. |
+| `VITE_ENABLE_MOCK_API` | `false` | Force-enable the mock client. Useful for demos or offline usage. |
+
+When the app loads on a non-localhost hostname and `VITE_API_BASE_URL` still points to `/api`, the mock client is enabled automatically. To connect to a live FastAPI deployment, set `VITE_API_BASE_URL` to the deployed backend URL during the Netlify build.
+
 ## Project Structure
 
 ```
