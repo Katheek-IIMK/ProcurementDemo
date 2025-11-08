@@ -13,6 +13,7 @@ type RequirementStatus =
   | 'shortlisted'
   | 'onboarding'
   | 'completed'
+  | 'rejected'
 
 type SupplierStatus =
   | 'discovered'

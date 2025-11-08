@@ -1,4 +1,10 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse, type AxiosRequestHeaders } from 'axios'
+import axios, {
+  AxiosHeaders,
+  type AxiosInstance,
+  type AxiosRequestConfig,
+  type AxiosResponse,
+  type AxiosRequestHeaders,
+} from 'axios'
 import mockApiClient from './mockApi'
 
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
@@ -63,41 +69,106 @@ if (!shouldUseMock) {
   )
 }
 
-const toAxiosResponse = <T>(data: T, config?: AxiosRequestConfig): AxiosResponse<T> => ({
-  data,
-  status: 200,
-  statusText: 'OK',
-  headers: (config?.headers as AxiosRequestHeaders) ?? {},
-  config: {
-    method: config?.method ?? 'get',
-    url: config?.url ?? '',
-    ...config,
-  },
-  request: undefined,
-})
+const buildMockResponse = <T, D = any>(config: AxiosRequestConfig<D>, data: T): AxiosResponse<T, D> => {
+  const headers = AxiosHeaders.from((config.headers as AxiosRequestHeaders | undefined) ?? {})
+  return {
+    data,
+    status: 200,
+    statusText: 'OK',
+    headers,
+    config: {
+      ...config,
+    },
+    request: { mock: true },
+  }
+}
 
-const mockAxiosAdapter: ApiClient = {
-  async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
-    const response = await mockApiClient.get(url, config as any)
-    return toAxiosResponse(response.data as T, { ...config, method: 'get', url })
+const mockAxiosAdapter: AxiosInstance = {
+  defaults: {
+    headers: {
+      common: AxiosHeaders.from({}),
+      delete: AxiosHeaders.from({}),
+      get: AxiosHeaders.from({}),
+      head: AxiosHeaders.from({}),
+      post: AxiosHeaders.from({}),
+      put: AxiosHeaders.from({}),
+      patch: AxiosHeaders.from({}),
+    },
   },
-  async post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
-    const response = await mockApiClient.post(url, data, config as any)
-    return toAxiosResponse(response.data as T, { ...config, method: 'post', url, data })
+  interceptors: {
+    request: realClient.interceptors.request,
+    response: realClient.interceptors.response,
   },
-  async request<T = any>(config: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  getUri: (config) => realClient.getUri(config),
+  async request<T = any, R = AxiosResponse<T>, D = any>(config: AxiosRequestConfig<D>): Promise<R> {
     const method = (config.method ?? 'get').toLowerCase()
+    const url = config.url ?? ''
     if (method === 'get') {
-      return mockAxiosAdapter.get(config.url ?? '', config)
+      return this.get(url, config) as Promise<R>
     }
     if (method === 'post') {
-      return mockAxiosAdapter.post(config.url ?? '', config.data, config)
+      return this.post(url, config.data as D, config) as Promise<R>
     }
     throw new Error(`Mock client does not support method ${config.method}`)
   },
-}
+  async get<T = any, R = AxiosResponse<T>, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R> {
+    const finalConfig: AxiosRequestConfig<D> = {
+      ...(config ?? {}),
+      method: 'get',
+      url,
+    }
+    const response = await mockApiClient.get(url, config as any)
+    return buildMockResponse(finalConfig, response.data as T) as R
+  },
+  async delete<T = any, R = AxiosResponse<T>, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R> {
+    throw new Error(`Mock client does not support DELETE ${url}`)
+  },
+  async head<T = any, R = AxiosResponse<T>, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R> {
+    throw new Error(`Mock client does not support HEAD ${url}`)
+  },
+  async options<T = any, R = AxiosResponse<T>, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R> {
+    throw new Error(`Mock client does not support OPTIONS ${url}`)
+  },
+  async post<T = any, R = AxiosResponse<T>, D = any>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R> {
+    const finalConfig: AxiosRequestConfig<D> = {
+      ...(config ?? {}),
+      method: 'post',
+      url,
+      data,
+    }
+    const response = await mockApiClient.post(url, data, config as any)
+    return buildMockResponse(finalConfig, response.data as T) as R
+  },
+  async put<T = any, R = AxiosResponse<T>, D = any>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R> {
+    throw new Error(`Mock client does not support PUT ${url}`)
+  },
+  async patch<T = any, R = AxiosResponse<T>, D = any>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R> {
+    throw new Error(`Mock client does not support PATCH ${url}`)
+  },
+  async postForm<T = any, R = AxiosResponse<T>, D = any>(
+    url: string,
+    data?: D,
+    config?: AxiosRequestConfig<D>
+  ): Promise<R> {
+    return this.post(url, data, config)
+  },
+  async putForm<T = any, R = AxiosResponse<T>, D = any>(
+    url: string,
+    data?: D,
+    config?: AxiosRequestConfig<D>
+  ): Promise<R> {
+    return this.put(url, data, config)
+  },
+  async patchForm<T = any, R = AxiosResponse<T>, D = any>(
+    url: string,
+    data?: D,
+    config?: AxiosRequestConfig<D>
+  ): Promise<R> {
+    return this.patch(url, data, config)
+  },
+} as unknown as AxiosInstance
 
-const apiClient: ApiClient = shouldUseMock ? mockAxiosAdapter : realClient
+const apiClient: ApiClient = shouldUseMock ? (mockAxiosAdapter as ApiClient) : realClient
 
 export default apiClient
 
