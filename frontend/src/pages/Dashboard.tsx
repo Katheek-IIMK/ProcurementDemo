@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import apiClient from '../api/client'
@@ -11,16 +12,28 @@ interface Requirement {
 }
 
 function Dashboard() {
-  const { data: requirements, isLoading, error } = useQuery<Requirement[]>({
+  const {
+    data: rawRequirements,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useQuery<Requirement[]>({
     queryKey: ['requirements'],
     queryFn: async () => {
       const response = await apiClient.get('/requirements')
       return response.data
     },
+    staleTime: 1000 * 60,
   })
 
-  if (isLoading) return <div className="loading">Loading requirements...</div>
-  if (error) return <div className="error">Error loading requirements</div>
+  const { requirements, dataIsMalformed } = useMemo(() => {
+    const isArray = Array.isArray(rawRequirements)
+    return {
+      requirements: isArray ? rawRequirements : [],
+      dataIsMalformed: rawRequirements !== undefined && !isArray,
+    }
+  }, [rawRequirements])
 
   return (
     <div className="container">
@@ -32,7 +45,27 @@ function Dashboard() {
           </Link>
         </div>
 
-        {!requirements || requirements.length === 0 ? (
+        {isLoading ? (
+          <div className="loading">Loading requirements...</div>
+        ) : error ? (
+          <div className="error" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <span>Error loading requirements. Please check the API service.</span>
+            <div>
+              <button className="btn" onClick={() => refetch()} disabled={isFetching}>
+                {isFetching ? 'Retrying...' : 'Retry'}
+              </button>
+            </div>
+          </div>
+        ) : dataIsMalformed ? (
+          <div className="error" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <span>Received unexpected data format from the API. Showing saved requirements is temporarily unavailable.</span>
+            <div>
+              <button className="btn" onClick={() => refetch()} disabled={isFetching}>
+                {isFetching ? 'Refreshing...' : 'Refresh Data'}
+              </button>
+            </div>
+          </div>
+        ) : requirements.length === 0 ? (
           <p>No requirements yet. Create your first requirement to get started.</p>
         ) : (
           <div style={{ display: 'grid', gap: '1rem' }}>
