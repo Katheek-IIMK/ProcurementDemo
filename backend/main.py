@@ -2,6 +2,7 @@
 Main FastAPI application for Procurement Demo
 Implements the fully autonomous sourcing agent workflow
 """
+import os
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -33,9 +34,28 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Procurement Demo API", version="1.0.0")
 
 # CORS middleware
+# Configure CORS origins with sensible defaults and optional overrides
+default_allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+]
+
+env_origins = os.getenv("CORS_ALLOW_ORIGINS")
+allowed_origins = (
+    [origin.strip() for origin in env_origins.split(",") if origin.strip()]
+    if env_origins
+    else default_allowed_origins
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
