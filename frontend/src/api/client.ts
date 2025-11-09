@@ -1,9 +1,7 @@
 import axios, {
   AxiosHeaders,
-  type AxiosInstance,
-  type AxiosRequestConfig,
   type AxiosResponse,
-  type AxiosRequestHeaders,
+  type InternalAxiosRequestConfig,
 } from 'axios'
 import mockApiClient from './mockApi'
 
@@ -18,8 +16,6 @@ const shouldUseMock = mockFlag || (!isLocalhost && normalizedBaseUrl === '/api')
 if (shouldUseMock) {
   console.info('⚙️ Using front-end mock API. Set VITE_API_BASE_URL to a real backend to disable.')
 }
-
-type ApiClient = Pick<AxiosInstance, 'get' | 'post' | 'request'>
 
 const realClient = axios.create({
   baseURL: normalizedBaseUrl,
@@ -69,56 +65,42 @@ if (!shouldUseMock) {
   )
 }
 
-const buildMockResponse = <T, D = any>(config: AxiosRequestConfig<D>, data: T): AxiosResponse<T, D> => {
-  const headers = AxiosHeaders.from((config.headers as AxiosRequestHeaders | undefined) ?? {})
-  const normalizedConfig: AxiosRequestConfig<D> = {
-    ...config,
-    headers,
+const buildMockResponse = <T, D = any>(config: InternalAxiosRequestConfig<D>, data: T): AxiosResponse<T, D> => {
+  const headers =
+    (config.headers as AxiosHeaders | undefined) !== undefined
+      ? (config.headers as AxiosHeaders)
+      : new AxiosHeaders()
+  if (!config.headers) {
+    config.headers = headers
   }
   return {
     data,
     status: 200,
     statusText: 'OK',
     headers,
-    config: normalizedConfig,
+    config,
     request: { mock: true },
   }
 }
 
-const mockAxiosAdapter: ApiClient = {
-  async get<T = any, R = AxiosResponse<T>, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R> {
-    const finalConfig: AxiosRequestConfig<D> = {
-      ...(config ?? {}),
-      method: 'get',
-      url,
-    }
-    const response = await mockApiClient.get(url, config as any)
-    return buildMockResponse(finalConfig, response.data as T) as R
-  },
-  async post<T = any, R = AxiosResponse<T>, D = any>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R> {
-    const finalConfig: AxiosRequestConfig<D> = {
-      ...(config ?? {}),
-      method: 'post',
-      url,
-      data,
-    }
-    const response = await mockApiClient.post(url, data, config as any)
-    return buildMockResponse(finalConfig, response.data as T) as R
-  },
-  async request<T = any, R = AxiosResponse<T>, D = any>(config: AxiosRequestConfig<D>): Promise<R> {
+if (shouldUseMock) {
+  realClient.defaults.adapter = async <D = any>(config: InternalAxiosRequestConfig<D>) => {
     const method = (config.method ?? 'get').toLowerCase()
     const url = config.url ?? ''
+    let response: { data: unknown }
     if (method === 'get') {
-      return this.get(url, config)
+      response = await mockApiClient.get(url, { params: config.params })
+    } else if (method === 'post') {
+      response = await mockApiClient.post(url, config.data)
+    } else {
+      throw new Error(`Mock client does not support method ${method.toUpperCase()} ${url}`)
     }
-    if (method === 'post') {
-      return this.post(url, config.data as D, config)
-    }
-    throw new Error(`Mock client does not support method ${config.method}`)
-  },
+
+    return buildMockResponse(config, response.data)
+  }
 }
 
-const apiClient: ApiClient = shouldUseMock ? mockAxiosAdapter : realClient
+const apiClient = realClient
 
 export default apiClient
 
