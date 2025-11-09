@@ -17,6 +17,20 @@ if (shouldUseMock) {
   console.info('⚙️ Using front-end mock API. Set VITE_API_BASE_URL to a real backend to disable.')
 }
 
+const parseData = (value: unknown): any => {
+  if (typeof value === 'string') {
+    if (value.trim() === '') {
+      return undefined
+    }
+    try {
+      return JSON.parse(value)
+    } catch {
+      return value
+    }
+  }
+  return value
+}
+
 const realClient = axios.create({
   baseURL: normalizedBaseUrl,
   headers: {
@@ -91,7 +105,8 @@ if (shouldUseMock) {
     if (method === 'get') {
       response = await mockApiClient.get(url, { params: config.params })
     } else if (method === 'post') {
-      response = await mockApiClient.post(url, config.data)
+      const payload = parseData(config.data)
+      response = await mockApiClient.post(url, payload)
     } else {
       throw new Error(`Mock client does not support method ${method.toUpperCase()} ${url}`)
     }
